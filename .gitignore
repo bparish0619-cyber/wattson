@@ -26,3 +26,14 @@ tile_cache_esri/
 
 # OS
 .DS_Store
+
+# Android app (android/)
+android/.gradle/
+android/.kotlin/
+android/build/
+android/app/build/
+android/local.properties
+.idea/
+*.iml
+*.jks
+*.keystore

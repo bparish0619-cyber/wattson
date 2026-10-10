@@ -96,6 +96,16 @@ Open `demo-data/www/rivian-dashboard.html` in a browser to click around.
 The whole `demo-data/www/` folder is a static site, so you can also
 upload it anywhere to share the demo.
 
+## Android app
+
+Prefer no server? [`android/`](android/README.md) is a native Android port
+(Kotlin, Jetpack Compose) of the same pipeline: the adaptive poller, local
+SQLite storage, trip/charge/drain analysis, geocoding, weather, AAA gas
+prices, route maps and encrypted tokens all run on the phone. It includes
+the same demo, so you can try it without a Rivian account. Builds and APK
+releases come from the **Android APK** workflow; see
+[`android/README.md`](android/README.md).
+
 ## How it works
 
 A poller hits Rivian's API on an adaptive schedule, frequent while driving,
@@ -142,6 +152,7 @@ hero. (Optional; the layout holds without it.)
 - `geocode.py`, `weather.py`, location names and ambient temperatures
 - `gasprice.py`, AAA gas-price scraping with daily caching
 - `api.py`, records what you paid per kWh at DC fast chargers
+- `android/`, the native Android app (see `android/README.md`)
 
 ## Fuel savings vs gas
 
