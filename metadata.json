@@ -1,8 +1,0 @@
-{
-  "name": "Wattson",
-  "description": "Smart Rivian EV companion tracking trip efficiency, charging history, home electricity costs, fuel savings vs gas, and overnight vampire drain.",
-  "requestFramePermissions": [],
-  "majorCapabilities": [
-    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
-  ]
-}
