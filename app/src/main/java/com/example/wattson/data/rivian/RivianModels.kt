@@ -17,15 +17,6 @@ data class RivianVehicle(
     val vin: String
 )
 
-/** Subset of Rivian's vehicleState, already converted to app units. Null means not reported. */
-data class RivianTelemetry(
-    val socPercent: Float?,
-    val batteryLimitPercent: Float?,
-    val rangeMi: Float?,
-    val odometerMi: Double?,
-    val chargerState: String?
-)
-
 sealed class LoginResult {
     data class RequiresOtp(val otpToken: String) : LoginResult()
     data class Success(val userSessionToken: String, val accessToken: String?, val refreshToken: String?) : LoginResult()

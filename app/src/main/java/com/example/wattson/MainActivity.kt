@@ -1,8 +1,13 @@
 package com.example.wattson
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
@@ -23,7 +28,10 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import com.example.wattson.data.WattsonRepository
+import com.example.wattson.data.poll.PollScheduler
+import com.example.wattson.model.PollingMode
 import com.example.wattson.ui.components.WattsonIcons
 import com.example.wattson.ui.screens.*
 import com.example.wattson.ui.theme.*
@@ -52,6 +60,12 @@ class MainActivity : ComponentActivity() {
                 MainApp(repository)
             }
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        // Foreground is the one moment Android always allows starting the polling service.
+        PollScheduler.apply(this)
     }
 }
 
@@ -94,17 +108,28 @@ fun MainApp(repository: WattsonRepository) {
     val packHealth by repository.packHealth.collectAsState()
     val batteryTrend by repository.batteryTrend.collectAsState()
     val settings by repository.settings.collectAsState()
+    val errands by repository.errands.collectAsState()
+    val savingsRows by repository.savings.collectAsState()
+    val needsReauth by repository.needsReauth.collectAsState()
+    val lastPollTs by repository.lastPollTs.collectAsState()
+    val isLinked = session != null
 
     // Lifetime efficiency
     val totalMiles = trips.sumOf { it.miles.toDouble() }.toFloat()
     val totalKwh = trips.sumOf { it.kwhUsed.toDouble() }.toFloat()
     val lifetimeEfficiency = if (totalKwh > 0) totalMiles / totalKwh else 3.1f
-
-    // Savings breakdown
-    val savingsRows = remember(charges, settings, lifetimeEfficiency) {
-        repository.calculateFuelSavings(charges, settings, lifetimeEfficiency)
-    }
     val savingsTotal = savingsRows.sumOf { it.saved.toDouble() }.toFloat()
+
+    // Continuous polling posts a status notification; Android 13+ needs permission to show it.
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    LaunchedEffect(isLinked, settings.pollingMode) {
+        if (isLinked && settings.pollingMode == PollingMode.CONTINUOUS && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
 
     // Back button handling
     BackHandler(enabled = showSettingsScreen || currentDestination != NavDestination.DASHBOARD) {
@@ -256,10 +281,13 @@ fun MainApp(repository: WattsonRepository) {
                     currentSettings = settings,
                     rivianSession = session,
                     isSyncing = isSyncing,
+                    needsReauth = needsReauth,
+                    lastPollTs = lastPollTs,
                     onSaveSettings = {
                         repository.updateSettings(it)
                         showSettingsScreen = false
                     },
+                    onSetHomeHere = { repository.setHomeToCurrentLocation() },
                     onSyncRivian = {
                         repository.refreshLiveTelemetry()
                     },
@@ -282,7 +310,10 @@ fun MainApp(repository: WattsonRepository) {
                         savingsTotal = savingsTotal,
                         lifetimeEfficiency = lifetimeEfficiency,
                         gasMpg = settings.gasMpg,
-                        isDemo = session == null,
+                        isDemo = !isLinked,
+                        needsReauth = needsReauth,
+                        lastPollTs = lastPollTs,
+                        onOpenSettings = { showSettingsScreen = true },
                         onNavigateToTrips = { currentDestination = NavDestination.TRIPS },
                         onNavigateToCharging = { currentDestination = NavDestination.CHARGING },
                         onNavigateToSavings = { currentDestination = NavDestination.SAVINGS },
@@ -293,6 +324,8 @@ fun MainApp(repository: WattsonRepository) {
 
                     NavDestination.TRIPS -> TripsScreen(
                         trips = trips,
+                        errands = errands,
+                        allowManualEntry = !isLinked,
                         onAddTrip = { start, end, miles, speed ->
                             repository.addTrip(start, end, miles, speed)
                         }
@@ -302,6 +335,7 @@ fun MainApp(repository: WattsonRepository) {
                         vehicle = vehicle,
                         charges = charges,
                         settings = settings,
+                        isDemo = !isLinked,
                         onToggleLiveCharge = { repository.toggleLiveCharge(it) },
                         onUpdateChargeCost = { id, cost ->
                             repository.updateChargeCost(id, cost)
@@ -316,13 +350,15 @@ fun MainApp(repository: WattsonRepository) {
                         savingsTotal = savingsTotal,
                         settings = settings,
                         lifetimeEfficiency = lifetimeEfficiency,
+                        isDemo = !isLinked,
                         onNavigateToSettings = { showSettingsScreen = true }
                     )
 
                     NavDestination.DRAIN -> DrainScreen(
                         drains = drains,
                         batteryTrend = batteryTrend,
-                        packHealth = packHealth
+                        packHealth = packHealth,
+                        usableKwh = settings.usableKwh
                     )
                 }
             }

@@ -9,33 +9,45 @@
 
 ## What this fork is
 
-Upstream Wattson runs on an always-on machine (Docker + Python). It polls Rivian's API, stores snapshots in SQLite, and generates an HTML dashboard. This fork rebuilds that dashboard as an **installable Android app** (Kotlin + Jetpack Compose) that runs entirely on the phone, with no server.
+Upstream Wattson runs on an always-on machine (Docker + Python). It polls Rivian's API, stores snapshots in SQLite, derives trips, charges and overnight drain from them, and generates an HTML dashboard. This fork ports that whole pipeline to an **installable Android app** (Kotlin + Jetpack Compose): the phone is the poller, the database and the dashboard, with no server.
 
 | | Upstream (`firerock31/wattson`) | This fork |
 |---|---|---|
 | Runs on | Always-on machine via Docker | Android 8.0+ phone |
 | Language | Python | Kotlin, Jetpack Compose, Material 3 |
-| Rivian data | Adaptive poller, full trip/charge/drain history derived from snapshots | Live battery, charge limit, range, odometer, and charging state on demand |
-| History | Persistent SQLite | 10-day demo history (from upstream `demo.py`) plus drives and charges you log by hand |
+| Polling | Adaptive poller (`poller.py`) | Same tiers as a foreground service, or a 15-minute battery-saver job |
+| Storage | SQLite snapshots | On-device SQLite snapshots |
+| Derivation | `analyze.py` + overnight windows in `report.py` | Kotlin port of the same logic |
+| Enrichment | Nominatim, Open-Meteo, AAA scraping, Esri route maps | Same services, cached on the device |
+| Tokens | Fernet-encrypted file | AES-GCM with a key in the Android Keystore |
 | Distribution | `git clone` + `docker compose up` | Signed APK attached to every GitHub Release |
 
 ## What was accomplished
 
 - **Native Android app** with five screens (Overview, Drives, Charging, Savings, Battery) and Settings, in a dark Rivian-inspired theme.
-- **Data layer**: `WattsonRepository` (app state, persisted settings and session), `DemoDataProvider` (a Kotlin port of upstream `demo.py`: the same Venice home base, the same 10-day Los Angeles itinerary, and the same R2 physics), and `FuelSavings` (EV cost vs a gas SUV).
-- **Rivian account linking**: a Kotlin GraphQL client that makes the same calls as `rivian-python-client` 2.1.0, which upstream `auth.py`/`riv.py` used. That is CSRF, login, OTP, vehicle list, and vehicle state. Your password is sent only to Rivian and is never stored.
+- **Automatic tracking** for a linked Rivian account. Nothing has to be entered by hand except what you paid at public chargers:
+  - **Adaptive poller** (`poller.py`): 30 s while driving, 5 min parked, 30 min while the car sleeps. Runs as a foreground service, or as a battery-saver job every 15 min that bursts to 30 s during a drive. Restarts after reboot.
+  - **Local storage** (`db.py`): every poll is saved in an on-device SQLite database. Trips, charges and drain are re-derived from it, so history survives restarts and improves as the analysis does.
+  - **Snapshot-to-trip derivation** (`analyze.py`): drives (including ones that happened between polls, via odometer bracketing), short-errand rollups, charging sessions classified DC fast vs AC, and clean 10 PM to 7 AM overnight drain with wake-up counts and abnormal-night flags.
+  - **Geocoding** (`geocode.py`): trip endpoints and round-trip destinations named via OpenStreetMap Nominatim, cached per ~100 m.
+  - **Weather** (`weather.py`): ambient temperature for each trip from Open-Meteo, cached per day and ~11 km cell.
+  - **AAA gas prices** (`gasprice.py`): your metro's daily regular-gas average, used per charge day in the savings math.
+  - **Route maps**: each drive's GPS path on Esri's dark basemap, as upstream's dashboard, with tiles cached on the phone.
+  - **Encrypted token store** (`crypto.py`): the Rivian session is sealed with AES-256-GCM under an Android Keystore key. The password is never stored.
+- **Rivian account linking**: a Kotlin GraphQL client that makes the same calls as `rivian-python-client` 2.1.0, which upstream `auth.py`/`riv.py` used.
+- **Demo mode** (no account): upstream's `demo.py` simulator ported to Kotlin. It emits snapshots that run through the same pipeline, so the demo shows exactly what a linked car produces. Demo controls (simulated charging, manual logging) are hidden when an account is linked.
 - **Release pipeline**: GitHub Actions runs unit tests and lint, builds a release APK, and publishes a GitHub Release with notes on every push to `main`.
 - **Launcher icon**: a vector adaptive icon (gauge ring plus charging bolt) with a monochrome layer for Android 13+ themed icons.
 - **Fixes and hardening**: locale-safe number entry, correct edge-to-edge insets, state that survives rotation, memory-safe hero image, and app backup disabled so Rivian session tokens stay on the device.
 
 ## Features
 
-- **Overview**: Rivian-style battery gauge (SoC, rated range, charge limit, charging power), odometer, and 4 tappable stat cards. Includes a simulated 11 kW plug-in so you can watch a charge session build up.
-- **Drives**: per-trip miles, kWh, mi/kWh, Wh/mi, average speed, and temperature. Search by place, and log drives by hand.
-- **Charging**: home AC, public AC, and DC fast sessions with SoC range, kWh, miles added, and average kW. Tap a DC session to record what you paid per kWh, and it feeds straight into savings.
-- **Savings**: lifetime and per-session savings vs a gas SUV (MPG and $/gal configurable).
-- **Battery**: night-by-night vampire drain (10 PM to 7 AM), an abnormal-night alert (>1.6x the median), a daily SoC curve, and pack capacity.
-- **Settings**: home $/kWh, comparison MPG, gas price, and vehicle name/model. Also link or unlink your Rivian account and reload the demo dataset.
+- **Overview**: Rivian-style battery gauge (SoC, range, charge limit, live charging power from the SoC slope), location, odometer, last sync time, and 4 tappable stat cards.
+- **Drives**: per-trip miles, kWh, mi/kWh, Wh/mi, average speed and ambient temperature. Tap a drive for its route map. Search by place, and see short drives rolled up per day.
+- **Charging**: home AC, public AC and DC fast sessions with SoC range, kWh, miles added and average kW. Tap an away session to record what you paid per kWh, and it feeds straight into savings.
+- **Savings**: lifetime and per-session savings vs a gas SUV at each charge day's AAA gas price.
+- **Battery**: night-by-night vampire drain (10 PM to 7 AM), wake-ups, an abnormal-night alert (>1.6x the median), the daily SoC curve, and pack capacity.
+- **Settings**: home location (or "use the car's current location"), home $/kWh, comparison MPG, AAA state and metro, usable battery kWh, polling mode, and link/unlink.
 
 ## Download and install
 
@@ -87,8 +99,13 @@ app/src/main/java/com/example/wattson/
 ├── MainActivity.kt            # Scaffold, navigation, top bar
 ├── model/Models.kt            # Trip, ChargingSession, OvernightDrain, settings, ...
 ├── data/
-│   ├── WattsonRepository.kt   # App state (StateFlow), persistence, simulated charging
-│   ├── DemoDataProvider.kt    # Port of upstream demo.py
+│   ├── WattsonRepository.kt   # App state (StateFlow): polls, stores, derives, publishes
+│   ├── analysis/Analyzer.kt   # Port of analyze.py + report.py overnight windows
+│   ├── db/WattsonDb.kt        # SQLite: snapshots, DC prices, place/weather/gas caches
+│   ├── enrich/                # Nominatim geocoding, Open-Meteo weather, AAA gas prices
+│   ├── poll/                  # Adaptive poll policy, foreground service, WorkManager job, boot receiver
+│   ├── secure/TokenStore.kt   # Keystore-backed encrypted Rivian session
+│   ├── DemoDataProvider.kt    # Port of upstream demo.py (snapshot simulator)
 │   ├── FuelSavings.kt         # EV vs gas SUV math
 │   └── rivian/                # Rivian GraphQL client and models
 └── ui/                        # Compose screens, charts, theme, icons
@@ -104,17 +121,18 @@ app/src/main/java/com/example/wattson/
 
 ## Known limitations
 
-- Demo and manually logged history live in memory. Drives, charges, and DC costs you log are lost when Android closes the app. Settings and the linked Rivian session persist.
-- A linked account syncs live state only. Rivian's API keeps no trip or charge history; upstream builds that history by polling continuously from a server, which a phone app cannot do without draining the car or the phone.
-- Rivian sign-in uses Rivian's unofficial consumer GraphQL API and may break if Rivian changes it. Not affiliated with Rivian.
+- History starts when you link: Rivian's API keeps no trip or charge history, so Wattson builds it from its own polls (as upstream does).
+- Detail depends on polling. Battery saver and Android's Doze mode can delay polls, so drives may be bracketed (start time and speed estimated) and nights without a poll near 10 PM and 7 AM are skipped.
+- The demo is in memory only; a linked account's data is stored on the phone (unlinking keeps it).
+- Rivian sign-in uses Rivian's unofficial consumer GraphQL API and may break if Rivian changes it. Nominatim, Open-Meteo, AAA and Esri are free public services used lightly and cached. Not affiliated with Rivian.
 
 ## Notes for the original author
 
 Hi @firerock31, thanks for building Wattson and sharing it under MIT. Some context on this fork:
 
 - **Attribution and license**: your MIT copyright notice is kept unchanged in [`LICENSE`](LICENSE). The tagline, feature set, drain methodology (10 PM to 7 AM window, 1.6x median threshold), savings model, and demo itinerary all come from your project.
-- **Code reused**: `DemoDataProvider.kt` ports `demo.py` (places, itinerary, R2 constants). `RivianApiClient.kt` follows the operations and headers your `auth.py`/`riv.py` used via `rivian-python-client` 2.1.0, including the km-to-miles and meters-to-miles conversions you documented in `riv.py`/`config.py`.
-- **Not ported**: the adaptive poller, snapshot-to-trip derivation (`analyze.py`), AAA gas-price scraping, geocoding, weather, route maps, and the encrypted token store. On Android, tokens live in app-private storage with backup disabled.
+- **Code ported**: `Analyzer.kt` is a line-by-line port of `analyze.py` (trips, bracketing, errands, charges) plus `report.py`'s overnight windows and live-charge rate. `PollPolicy.kt` ports `poller.py`'s tiers, `WattsonDb.kt` mirrors `db.py`, and `Geocoder.kt`, `WeatherService.kt` and `GasPriceService.kt` port `geocode.py`, `weather.py` and `gasprice.py` with the same caching rules. `TokenStore.kt` replaces `crypto.py` with the Android Keystore, `DemoDataProvider.kt` ports `demo.py`'s simulator, and `RouteMap.kt` redraws your Esri trip maps. `RivianApiClient.kt` follows the operations, fields and unit conversions of `auth.py`/`riv.py`/`config.py`.
+- **Not ported**: the HTML report itself (the app's screens replace it), the 24-hour activity strip, and the drive-watch file.
 - **Merging back**: this fork's `main` removes the Python service, so it is not meant to be merged upstream as-is. If you would like an Android client in the original repo, the app could live in an `android/` folder next to the Python code. Happy to open a PR shaped that way.
 - **PII check**: your `pii-check.yml` workflow is kept and passes. The only coordinates in the Kotlin code are the fictional demo home base from `demo.py`.
 - **Hero image**: `app/src/main/res/drawable-nodpi/rivian_hero.jpg` came with the Android port, and its source is unverified. Replace it if you plan to redistribute.

@@ -26,6 +26,7 @@ fun ChargingScreen(
     vehicle: VehicleStatus,
     charges: List<ChargingSession>,
     settings: AppSettings,
+    isDemo: Boolean,
     onToggleLiveCharge: (Boolean) -> Unit,
     onUpdateChargeCost: (chargeId: Long, costPerKwh: Float?) -> Unit,
     onAddChargingSession: (socStart: Float, socEnd: Float, kwhAdded: Float, type: ChargerType, label: String, cost: Float?) -> Unit
@@ -41,14 +42,16 @@ fun ChargingScreen(
         // The app-level Scaffold already applies system bar insets.
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = { showAddSessionDialog = true },
-                containerColor = RivianAmber,
-                contentColor = RivianBlack,
-                shape = RoundedCornerShape(16.dp),
-                modifier = Modifier.testTag("fab_add_charge")
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "Log Charge Session")
+            if (isDemo) {
+                FloatingActionButton(
+                    onClick = { showAddSessionDialog = true },
+                    containerColor = RivianAmber,
+                    contentColor = RivianBlack,
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.testTag("fab_add_charge")
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Log Charge Session")
+                }
             }
         }
     ) { padding ->
@@ -107,7 +110,7 @@ fun ChargingScreen(
                                     }
 
                                     Text(
-                                        text = "${vehicle.powerKw} kW",
+                                        text = if (vehicle.powerKw > 0f) "${String.format("%.1f", vehicle.powerKw)} kW" else "measuring…",
                                         color = TextPrimary,
                                         fontSize = 16.sp,
                                         fontWeight = FontWeight.Bold
@@ -130,9 +133,9 @@ fun ChargingScreen(
                                     }
                                 }
 
-                                Spacer(modifier = Modifier.height(14.dp))
+                                if (isDemo) Spacer(modifier = Modifier.height(14.dp))
 
-                                Button(
+                                if (isDemo) Button(
                                     onClick = { onToggleLiveCharge(false) },
                                     colors = ButtonDefaults.buttonColors(containerColor = RivianRed, contentColor = TextPrimary),
                                     shape = RoundedCornerShape(10.dp),
@@ -176,6 +179,17 @@ fun ChargingScreen(
                             }
                         }
                     }
+                }
+            }
+
+            if (charges.isEmpty()) {
+                item {
+                    Text(
+                        text = "No charging sessions yet. They appear automatically once the car charges between polls.",
+                        color = TextSecondary,
+                        fontSize = 13.sp,
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
                 }
             }
 
@@ -237,7 +251,7 @@ fun ChargeRowItem(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                     Box(
                         modifier = Modifier
                             .background(
@@ -262,10 +276,14 @@ fun ChargeRowItem(
                         text = session.label,
                         color = TextPrimary,
                         fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
                     )
                 }
 
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = dateStr,
                     color = TextTertiary,
@@ -282,7 +300,7 @@ fun ChargeRowItem(
             ) {
                 Column {
                     Text(
-                        text = "+${session.kwhAdded} kWh  •  +${session.milesAdded.toInt()} mi",
+                        text = "+${String.format("%.1f", session.kwhAdded)} kWh  •  +${session.milesAdded.toInt()} mi",
                         color = TextPrimary,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold
@@ -357,7 +375,7 @@ fun ChargeCostDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    text = "Record what you paid per kWh at ${session.label} (+${session.kwhAdded} kWh added). Feeds fuel savings vs gas calculations.",
+                    text = "Record what you paid per kWh at ${session.label} (+${String.format("%.1f", session.kwhAdded)} kWh added). Feeds fuel savings vs gas calculations.",
                     color = TextSecondary,
                     fontSize = 13.sp
                 )

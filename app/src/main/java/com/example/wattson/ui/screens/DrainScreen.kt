@@ -27,7 +27,8 @@ import com.example.wattson.ui.theme.*
 fun DrainScreen(
     drains: List<OvernightDrain>,
     batteryTrend: List<BatteryTrendPoint>,
-    packHealth: List<PackHealthPoint>
+    packHealth: List<PackHealthPoint>,
+    usableKwh: Float
 ) {
     var selectedDrain by remember(drains) { mutableStateOf(drains.firstOrNull()) }
     val latestPack = packHealth.lastOrNull()
@@ -277,8 +278,8 @@ fun DrainScreen(
                             }
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text("USABLE CAPACITY", color = TextSecondary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                Text("87.9 kWh", color = RivianGreen, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                                Text("Rated usable pack", color = TextTertiary, fontSize = 10.sp)
+                                Text("${String.format("%.1f", usableKwh)} kWh", color = RivianGreen, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                                Text("Set in Settings", color = TextTertiary, fontSize = 10.sp)
                             }
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text("IMPLIED RANGE", color = TextSecondary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
