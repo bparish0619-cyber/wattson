@@ -1,5 +1,6 @@
 package com.example.wattson.data.rivian
 
+import com.example.wattson.data.analysis.Snapshot
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -8,6 +9,7 @@ import org.json.JSONObject
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URI
+import java.time.Instant
 import java.util.UUID
 
 /**
@@ -79,21 +81,15 @@ class RivianApiClient {
         }
     }
 
-    /** Fetches current vehicle state. Throws [RivianApiException] on failure. */
-    suspend fun getVehicleState(userSessionToken: String, vehicleId: String): RivianTelemetry = withContext(Dispatchers.IO) {
+    /** Polls current vehicle state as a raw snapshot. Throws [RivianApiException] on failure. */
+    suspend fun getVehicleState(userSessionToken: String, vehicleId: String): Snapshot = withContext(Dispatchers.IO) {
         try {
             createCsrfToken()
             val state = execute(
                 VEHICLE_STATE_QUERY, "GetVehicleState", JSONObject().put("vehicleID", vehicleId),
                 userSession = userSessionToken
             ).optJSONObject("vehicleState") ?: throw RivianApiException("Rivian returned no state for this vehicle.")
-            RivianTelemetry(
-                socPercent = state.value("batteryLevel")?.toFloat(),
-                batteryLimitPercent = state.value("batteryLimit")?.toFloat(),
-                rangeMi = state.value("distanceToEmpty")?.let { (it / KM_PER_MILE).toFloat() },
-                odometerMi = state.value("vehicleMileage")?.let { it / METERS_PER_MILE },
-                chargerState = state.optJSONObject("chargerState")?.str("value")
-            )
+            parseVehicleState(state, System.currentTimeMillis() / 1000)
         } catch (e: RivianApiException) {
             throw e
         } catch (e: CancellationException) {
@@ -174,21 +170,44 @@ class RivianApiClient {
         else -> "Unexpected error: ${message ?: javaClass.simpleName}"
     }
 
-    private fun JSONObject.str(name: String): String? = if (isNull(name)) null else optString(name)
+    companion object {
+        /** Normalizes a vehicleState payload, as upstream riv.py did (km and meters converted where noted). */
+        fun parseVehicleState(state: JSONObject, ts: Long): Snapshot {
+            // gnssLocation is not wrapped in {value, timeStamp}; handle both shapes.
+            val locNode = state.optJSONObject("gnssLocation")
+            val loc = locNode?.optJSONObject("value") ?: locNode
+            val cloud = state.optJSONObject("cloudConnection")
+            return Snapshot(
+                ts = ts,
+                soc = state.value("batteryLevel"),
+                capacityKwh = state.value("batteryCapacity"),
+                rangeMi = state.value("distanceToEmpty")?.let { it / KM_PER_MILE }, // reported in km
+                batteryLimit = state.value("batteryLimit"),
+                chargerState = state.text("chargerState"),
+                chargePort = state.text("chargePortState"),
+                powerState = state.text("powerState"),
+                gear = state.text("gearStatus"),
+                lat = loc?.number("latitude"),
+                lon = loc?.number("longitude"),
+                speed = state.value("gnssSpeed"),
+                geoLabel = state.opt("geoLocation").let { if (it is JSONObject) it.str("value") else it as? String },
+                odometerM = state.value("vehicleMileage"), // meters
+                cloudOnline = cloud?.let { if (it.isNull("isOnline")) null else it.optBoolean("isOnline") },
+                cloudSyncTs = cloud?.str("lastSync")?.let { runCatching { Instant.parse(it).epochSecond }.getOrNull() }
+            )
+        }
 
-    private fun JSONObject.value(name: String): Double? {
-        val node = optJSONObject(name) ?: return null
-        if (node.isNull("value")) return null
-        return node.optDouble("value").takeUnless { it.isNaN() }
-    }
+        private fun JSONObject.str(name: String): String? = if (isNull(name)) null else optString(name)
+        private fun JSONObject.text(name: String): String? = optJSONObject(name)?.str("value")
+        private fun JSONObject.number(name: String): Double? =
+            if (isNull(name)) null else optDouble(name).takeUnless { it.isNaN() }
+        private fun JSONObject.value(name: String): Double? = optJSONObject(name)?.number("value")
 
-    private companion object {
         const val GATEWAY_URL = "https://rivian.com/api/gql/gateway/graphql"
         const val USER_AGENT = "RivianApp/707 CFNetwork/1237 Darwin/20.4.0"
         const val APOLLO_CLIENT_NAME = "com.rivian.ios.consumer-apollo-ios"
         const val TIMEOUT_MS = 20_000
         const val KM_PER_MILE = 1.609344
-        const val METERS_PER_MILE = 1609.344
 
         const val CSRF_QUERY =
             "mutation CreateCSRFToken { createCsrfToken { __typename csrfToken appSessionToken } }"
@@ -202,10 +221,13 @@ class RivianApiClient {
                 "... on MobileLoginResponse { __typename accessToken refreshToken userSessionToken } } }"
         const val USER_INFO_QUERY =
             "query getUserInfo { currentUser { __typename id vehicles { id vin name vehicle { __typename id vin modelYear make model } } } }"
+        // Same fields upstream polled (config.PROPS). gnssLocation omits isAuthorized, which the schema rejects.
         const val VEHICLE_STATE_QUERY =
             "query GetVehicleState(\$vehicleID: String!) { vehicleState(id: \$vehicleID) { " +
-                "batteryLevel { timeStamp value } batteryLimit { timeStamp value } " +
-                "distanceToEmpty { timeStamp value } vehicleMileage { timeStamp value } " +
-                "chargerState { timeStamp value } } }"
+                "batteryLevel { timeStamp value } batteryLimit { timeStamp value } batteryCapacity { timeStamp value } " +
+                "distanceToEmpty { timeStamp value } chargerState { timeStamp value } chargePortState { timeStamp value } " +
+                "powerState { timeStamp value } gearStatus { timeStamp value } gnssLocation { latitude longitude timeStamp } " +
+                "geoLocation { timeStamp value } gnssSpeed { timeStamp value } vehicleMileage { timeStamp value } " +
+                "cloudConnection { lastSync isOnline } } }"
     }
 }

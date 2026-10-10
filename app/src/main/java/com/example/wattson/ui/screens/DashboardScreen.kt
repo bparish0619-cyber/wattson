@@ -36,6 +36,9 @@ fun DashboardScreen(
     lifetimeEfficiency: Float,
     gasMpg: Float,
     isDemo: Boolean,
+    needsReauth: Boolean,
+    lastPollTs: Long?,
+    onOpenSettings: () -> Unit,
     onNavigateToTrips: () -> Unit,
     onNavigateToCharging: () -> Unit,
     onNavigateToSavings: () -> Unit,
@@ -53,6 +56,27 @@ fun DashboardScreen(
             .testTag("dashboard_screen"),
         contentPadding = PaddingValues(bottom = 96.dp)
     ) {
+        if (needsReauth) {
+            item {
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = RivianRed.copy(alpha = 0.15f)),
+                    border = BorderStroke(1.dp, RivianRed),
+                    onClick = onOpenSettings,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                ) {
+                    Text(
+                        text = "Rivian signed Wattson out, so tracking is paused. Tap to open Settings, unlink, and sign in again.",
+                        color = TextPrimary,
+                        fontSize = 13.sp,
+                        modifier = Modifier.padding(14.dp)
+                    )
+                }
+            }
+        }
+
         // Hero Vehicle Header Card
         item {
             Box(
@@ -164,12 +188,21 @@ fun DashboardScreen(
                             )
                         }
 
-                        Text(
-                            text = "${vehicle.odometerMi.toInt()} mi",
-                            color = TextSecondary,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium
-                        )
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(
+                                text = "${vehicle.odometerMi.toInt()} mi",
+                                color = TextSecondary,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                            if (!isDemo) {
+                                Text(
+                                    text = lastPollTs?.let { "Synced ${relativeTime(it)}" } ?: "Not synced yet",
+                                    color = TextTertiary,
+                                    fontSize = 11.sp
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -220,9 +253,9 @@ fun DashboardScreen(
                         }
                     }
 
+                    // Live charging simulation (demo only; a linked car reports its own charging)
+                    if (isDemo) {
                     Spacer(modifier = Modifier.height(14.dp))
-
-                    // Live charging simulation button
                     Button(
                         onClick = { onToggleLiveCharge(!vehicle.isCharging) },
                         colors = ButtonDefaults.buttonColors(
@@ -246,6 +279,7 @@ fun DashboardScreen(
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 13.sp
                         )
+                    }
                     }
                 }
             }
@@ -412,7 +446,7 @@ fun DashboardScreen(
             }
         }
 
-        item {
+        if (isDemo) item {
             Spacer(modifier = Modifier.height(12.dp))
             OutlinedButton(
                 onClick = onQuickAddTrip,
@@ -429,5 +463,16 @@ fun DashboardScreen(
                 Text("Simulate / Log New Drive", fontSize = 13.sp)
             }
         }
+    }
+}
+
+/** "just now", "5 min ago", "3 h ago", "2 d ago" for an epoch-seconds timestamp. */
+internal fun relativeTime(epochSeconds: Long): String {
+    val age = (System.currentTimeMillis() / 1000 - epochSeconds).coerceAtLeast(0)
+    return when {
+        age < 60 -> "just now"
+        age < 3600 -> "${age / 60} min ago"
+        age < 86_400 -> "${age / 3600} h ago"
+        else -> "${age / 86_400} d ago"
     }
 }

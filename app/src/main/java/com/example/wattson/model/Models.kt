@@ -29,7 +29,10 @@ data class Trip(
     val startLabel: String,
     val endLabel: String,
     val tempF: Float? = null,
-    val bracketed: Boolean = false
+    val bracketed: Boolean = false,
+    val viaLabel: String? = null,
+    /** GPS fixes along the drive, for the route map. */
+    val path: List<LatLon> = emptyList()
 ) {
     val miPerKwh: Float
         get() = if (kwhUsed > 0.05f) miles / kwhUsed else 0f
@@ -37,6 +40,8 @@ data class Trip(
     val durationMinutes: Long
         get() = (endTs - startTs) / 60
 }
+
+data class LatLon(val lat: Double, val lon: Double)
 
 data class DayErrand(
     val day: String,
@@ -88,14 +93,11 @@ data class OvernightDrain(
     val socEnd: Float,
     val kwhLost: Float,
     val wattsAvg: Float,
-    val rangeStart: Float? = null,
-    val rangeEnd: Float? = null,
+    /** Rated range lost overnight, net of any driving or charging in the window. */
+    val milesLost: Float? = null,
     val wakeCount: Int = 0,
     val isAbnormal: Boolean = false
-) {
-    val milesLost: Float?
-        get() = if (rangeStart != null && rangeEnd != null) (rangeStart - rangeEnd).coerceAtLeast(0f) else null
-}
+)
 
 data class FuelSavingRow(
     val id: Long,
@@ -120,13 +122,27 @@ data class PackHealthPoint(
     val impliedRangeMi: Float
 )
 
+enum class PollingMode {
+    /** Foreground service: 30 s while driving, 5 min parked, 30 min asleep. */
+    CONTINUOUS,
+    /** Background job every 15 min, bursting to 30 s for a few minutes while driving. */
+    BATTERY_SAVER
+}
+
 data class AppSettings(
     val homeKwhRate: Float = 0.30f,
     val gasMpg: Float = 25.0f,
+    /** Used when AAA can't be reached. */
     val gasPrice: Float = 4.50f,
     val vehicleName: String = "Demo R2",
     val vehicleModel: String = "Rivian R2",
-    val homeLat: Double = 33.99202,
-    val homeLon: Double = -118.47159,
-    val timezone: String = "America/Los_Angeles"
+    /** Usable pack energy for SoC to kWh math (Rivian's rated usable figure). */
+    val usableKwh: Float = 87.9f,
+    /** Home charging location; charges within 250 m (or labelled HOME by the car) cost the home rate. */
+    val homeLat: Double? = null,
+    val homeLon: Double? = null,
+    /** AAA gas-price source: state page and metro-area row. */
+    val gasState: String = "CA",
+    val gasMetro: String = "Los Angeles-Long Beach",
+    val pollingMode: PollingMode = PollingMode.CONTINUOUS
 )

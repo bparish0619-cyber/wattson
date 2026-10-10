@@ -97,6 +97,7 @@ jobs:
             - Signing: ${{ env.SIGNING_NOTE }}
             - Checks: unit tests and Android lint passed before this APK was built.
 
-            ## Known limitations
-            - Demo and manually logged history is kept in memory and resets when Android closes the app.
-            - A linked Rivian account syncs live battery, charge limit, range, odometer and charging state only.
+            ## Notes
+            - Linked accounts are polled in the background (Continuous or Battery saver, set in Settings); trips, charges and overnight drain are derived on the phone and stored locally.
+            - Set your home charging location in Settings so home sessions are costed at your rate.
+            - Rivian sign-in uses Rivian's unofficial API and may break if Rivian changes it.

@@ -26,6 +26,7 @@ fun SavingsScreen(
     savingsTotal: Float,
     settings: AppSettings,
     lifetimeEfficiency: Float,
+    isDemo: Boolean,
     onNavigateToSettings: () -> Unit
 ) {
     val totalEvCost = savingsRows.sumOf { it.evCost.toDouble() }.toFloat()
@@ -142,7 +143,8 @@ fun SavingsScreen(
 
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = "• Gas SUV Baseline: ${settings.gasMpg.toInt()} MPG @ $${String.format("%.2f", settings.gasPrice)}/gal\n" +
+                            text = (if (isDemo) "• Gas SUV Baseline: ${settings.gasMpg.toInt()} MPG @ $${String.format("%.2f", settings.gasPrice)}/gal\n"
+                                   else "• Gas SUV Baseline: ${settings.gasMpg.toInt()} MPG at each charge day's AAA ${settings.gasMetro} average (fallback $${String.format("%.2f", settings.gasPrice)}/gal)\n") +
                                    "• Rivian Home Rate: $${String.format("%.2f", settings.homeKwhRate)}/kWh all-in\n" +
                                    "• Fleet Efficiency: ${String.format("%.2f", lifetimeEfficiency)} mi/kWh",
                             color = TextSecondary,
@@ -239,12 +241,12 @@ fun SavingsScreen(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text(
-                                text = "${row.kwh} kWh added",
+                                text = "${String.format("%.1f", row.kwh)} kWh added",
                                 color = TextSecondary,
                                 fontSize = 12.sp
                             )
                             Text(
-                                text = "EV: $${String.format("%.2f", row.evCost)} vs Gas: $${String.format("%.2f", row.gasCost)}",
+                                text = "EV: $${String.format("%.2f", row.evCost)} vs Gas: $${String.format("%.2f", row.gasCost)} @ $${String.format("%.2f", row.gasPrice)}/gal",
                                 color = TextSecondary,
                                 fontSize = 12.sp
                             )

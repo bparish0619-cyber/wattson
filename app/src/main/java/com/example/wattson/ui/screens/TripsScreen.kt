@@ -16,7 +16,9 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.wattson.model.DayErrand
 import com.example.wattson.model.Trip
+import com.example.wattson.ui.components.RouteMap
 import com.example.wattson.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.*
@@ -24,6 +26,8 @@ import java.util.*
 @Composable
 fun TripsScreen(
     trips: List<Trip>,
+    errands: List<DayErrand>,
+    allowManualEntry: Boolean,
     onAddTrip: (start: String, end: String, miles: Float, avgMph: Float) -> Unit
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
@@ -48,14 +52,16 @@ fun TripsScreen(
         // The app-level Scaffold already applies system bar insets.
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = { showAddDialog = true },
-                containerColor = RivianGreen,
-                contentColor = RivianBlack,
-                shape = RoundedCornerShape(16.dp),
-                modifier = Modifier.testTag("fab_add_trip")
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "Log Trip")
+            if (allowManualEntry) {
+                FloatingActionButton(
+                    onClick = { showAddDialog = true },
+                    containerColor = RivianGreen,
+                    contentColor = RivianBlack,
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.testTag("fab_add_trip")
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Log Trip")
+                }
             }
         }
     ) { padding ->
@@ -145,8 +151,46 @@ fun TripsScreen(
                 }
             }
 
+            if (trips.isEmpty()) {
+                item {
+                    Text(
+                        text = "No drives yet. Drives appear automatically after the car moves and Wattson polls it.",
+                        color = TextSecondary,
+                        fontSize = 13.sp,
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
+                }
+            }
+
             items(filteredTrips, key = { it.id }) { trip ->
                 TripRowItem(trip = trip)
+            }
+
+            if (errands.isNotEmpty() && searchQuery.isBlank()) {
+                item {
+                    Text(
+                        text = "Short drives (under 3 min)",
+                        color = TextPrimary,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 4.dp)
+                    )
+                }
+                items(errands, key = { "errand_" + it.day }) { e ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(e.day, color = TextSecondary, fontSize = 13.sp)
+                        Text(
+                            text = "${e.drives} ${if (e.drives == 1) "drive" else "drives"} • ${String.format("%.1f", e.miles)} mi • ${String.format("%.2f", e.kwhUsed)} kWh",
+                            color = TextSecondary,
+                            fontSize = 13.sp
+                        )
+                    }
+                }
             }
         }
     }
@@ -168,6 +212,9 @@ fun TripRowItem(trip: Trip) {
     val startTime = sdf.format(Date(trip.startTs * 1000)).lowercase()
     val endTime = sdf.format(Date(trip.endTs * 1000)).lowercase()
 
+    var expanded by remember { mutableStateOf(false) }
+    val hasMap = trip.path.size >= 2
+
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = RivianCard),
@@ -175,6 +222,7 @@ fun TripRowItem(trip: Trip) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 6.dp)
+            .then(if (hasMap) Modifier.clickable { expanded = !expanded } else Modifier)
             .testTag("trip_item_${trip.id}")
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -184,7 +232,7 @@ fun TripRowItem(trip: Trip) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "${trip.startLabel} → ${trip.endLabel}",
+                    text = if (trip.viaLabel != null) "${trip.startLabel} → ${trip.viaLabel} → ${trip.endLabel}" else "${trip.startLabel} → ${trip.endLabel}",
                     color = TextPrimary,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -214,14 +262,14 @@ fun TripRowItem(trip: Trip) {
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = "${trip.miles} mi",
+                        text = "${String.format("%.1f", trip.miles)} mi",
                         color = TextPrimary,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium
                     )
                     Text(" • ", color = TextTertiary)
                     Text(
-                        text = "${trip.kwhUsed} kWh",
+                        text = "${String.format("%.2f", trip.kwhUsed)} kWh",
                         color = TextSecondary,
                         fontSize = 13.sp
                     )
@@ -257,7 +305,30 @@ fun TripRowItem(trip: Trip) {
                             fontSize = 12.sp
                         )
                     }
+                    if (hasMap) {
+                        Text(
+                            text = if (expanded) " • hide map" else " • show map",
+                            color = RivianGreen,
+                            fontSize = 12.sp
+                        )
+                    }
                 }
+            }
+            if (trip.bracketed) {
+                Text(
+                    text = "Started between polls; time and speed are estimates.",
+                    color = TextTertiary,
+                    fontSize = 11.sp
+                )
+            }
+            if (expanded && hasMap) {
+                Spacer(modifier = Modifier.height(10.dp))
+                RouteMap(
+                    path = trip.path,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp)
+                )
             }
         }
     }

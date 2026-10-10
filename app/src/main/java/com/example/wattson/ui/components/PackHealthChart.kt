@@ -33,7 +33,7 @@ fun BatteryTrendChart(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text("End-of-Day Battery %", color = TextSecondary, fontSize = 12.sp, fontWeight = FontWeight.Medium)
-            Text("10-day span", color = TextTertiary, fontSize = 11.sp)
+            Text("Last ${points.size} days", color = TextTertiary, fontSize = 11.sp)
         }
 
         Spacer(modifier = Modifier.height(8.dp))
