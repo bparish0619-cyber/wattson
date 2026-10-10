@@ -29,7 +29,8 @@ fun DrainScreen(
     batteryTrend: List<BatteryTrendPoint>,
     packHealth: List<PackHealthPoint>
 ) {
-    var selectedDrain by remember { mutableStateOf(drains.firstOrNull()) }
+    var selectedDrain by remember(drains) { mutableStateOf(drains.firstOrNull()) }
+    val latestPack = packHealth.lastOrNull()
 
     val avgKwh = if (drains.isNotEmpty()) drains.map { it.kwhLost }.average().toFloat() else 0f
     val avgWatts = if (drains.isNotEmpty()) drains.map { it.wattsAvg }.average().toFloat() else 0f
@@ -106,7 +107,7 @@ fun DrainScreen(
                                 Icon(Icons.Default.Warning, contentDescription = null, tint = RivianRed, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "$abnormalCount night had abnormal drain (>1.6x baseline median) due to proximity wake-ups.",
+                                    text = "$abnormalCount ${if (abnormalCount == 1) "night" else "nights"} had abnormal drain (>1.6x baseline median), likely from proximity wake-ups.",
                                     color = RivianRed,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Medium
@@ -271,7 +272,7 @@ fun DrainScreen(
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text("PACK CAPACITY", color = TextSecondary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                Text("91.4 kWh", color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                                Text("${String.format("%.1f", latestPack?.capacityKwh ?: 91.4f)} kWh", color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                                 Text("BMS raw estimate", color = TextTertiary, fontSize = 10.sp)
                             }
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -281,7 +282,7 @@ fun DrainScreen(
                             }
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text("IMPLIED RANGE", color = TextSecondary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                Text("336 mi", color = RivianAmber, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                                Text("${(latestPack?.impliedRangeMi ?: 336f).toInt()} mi", color = RivianAmber, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                                 Text("Full 100% capacity", color = TextTertiary, fontSize = 10.sp)
                             }
                         }

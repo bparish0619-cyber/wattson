@@ -44,6 +44,43 @@ Wattson is an Android application built with **Kotlin and Jetpack Compose** impl
 - **Theme**: Rivian automotive dark aesthetic (`#0B0D10` background, `#7ED321` Rivian green, `#F5A623` amber)
 - **Build System**: Gradle 9.3.1 with Android Gradle Plugin 9.1.1
 
+## Download a Test APK
+
+Every push and pull request runs the **Android APK** workflow (`.github/workflows/android-apk.yml`), which runs unit tests and lint, then builds a release APK.
+
+- **Direct download (recommended)**: Actions → *Android APK* → *Run workflow*. When it finishes, the APK is attached to a new pre-release named `Wattson test build N` on the Releases page. Pushing a `v*` tag does the same.
+- **Workflow artifact**: open any workflow run and download `wattson-apk-N` (a zip containing the `.apk`; requires being signed in to GitHub).
+
+To install, open the `.apk` on an Android 8.0+ phone and allow *Install unknown apps* for your browser or file manager when prompted.
+
+### Release signing (optional)
+
+Without signing secrets, the release APK is signed with the CI runner's throwaway debug key. It installs fine, but each build can have a different signature, so you may need to uninstall before installing a newer build. For stable updates, add these repository secrets (Settings → Secrets and variables → Actions):
+
+| Secret | Value |
+|---|---|
+| `WATTSON_KEYSTORE_BASE64` | `base64 -w0 wattson-release.jks` output |
+| `WATTSON_KEYSTORE_PASSWORD` | Keystore password |
+| `WATTSON_KEY_ALIAS` | Key alias (e.g. `wattson`) |
+| `WATTSON_KEY_PASSWORD` | Key password |
+
+Create the keystore once with `keytool -genkeypair -v -keystore wattson-release.jks -alias wattson -keyalg RSA -keysize 4096 -validity 10000` and keep it somewhere safe; never commit it.
+
+## Build Locally
+
+Requires JDK 21 and the Android SDK (platform 36).
+
+```bash
+./gradlew testDebugUnitTest lintDebug assembleDebug   # app/build/outputs/apk/debug/app-debug.apk
+./gradlew assembleRelease                             # debug-signed unless WATTSON_KEYSTORE_* env vars are set
+```
+
+## Known Limitations
+
+- Trip, charging, and drain history is generated demo data held in memory; drives, charges, and DC costs you log are lost when the app process restarts. Settings and the linked Rivian session persist.
+- A linked Rivian account syncs live battery level, charge limit, range, odometer, and charging state. Rivian's API exposes no trip or charge history, so a linked account starts with an empty log.
+- Rivian sign-in uses Rivian's unofficial consumer GraphQL API (the same calls as `rivian-python-client`) and may break if Rivian changes it.
+
 ## License
 
 MIT

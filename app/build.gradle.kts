@@ -3,46 +3,46 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+// CI sets GITHUB_RUN_NUMBER so every build installs over the previous one.
+val buildNumber = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
+
+// Release signing comes from the environment (see .github/workflows/android-apk.yml).
+// Without it, release builds fall back to the debug key so a test APK is still installable.
+val releaseKeystore = System.getenv("WATTSON_KEYSTORE_FILE")?.let { file(it) }?.takeIf { it.exists() }
+
 android {
     namespace = "com.example.wattson"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.aistudio.wattson.vtrxyz"
+        applicationId = "com.wattson.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = buildNumber
+        versionName = "1.0.$buildNumber"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     signingConfigs {
-        create("release") {
-            storeFile = file("${rootDir}/debug.keystore")
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
-        }
-        getByName("debug") {
-            storeFile = file("${rootDir}/debug.keystore")
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
+        if (releaseKeystore != null) {
+            create("release") {
+                storeFile = releaseKeystore
+                storePassword = System.getenv("WATTSON_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("WATTSON_KEY_ALIAS")
+                keyPassword = System.getenv("WATTSON_KEY_PASSWORD")
+            }
         }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("release")
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-        }
-        debug {
-            signingConfig = signingConfigs.getByName("debug")
         }
     }
 
@@ -68,5 +68,6 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
     implementation(libs.androidx.navigation.compose)
-    implementation(libs.coil.compose)
+
+    testImplementation(libs.junit)
 }

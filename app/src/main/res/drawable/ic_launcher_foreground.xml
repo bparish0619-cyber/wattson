@@ -1,8 +1,47 @@
 <?xml version="1.0" encoding="utf-8"?>
-<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item
-        android:width="66dp"
-        android:height="66dp"
-        android:drawable="@drawable/ic_launcher_wattson"
-        android:gravity="center" />
-</layer-list>
+<!-- Wattson launcher foreground: battery gauge ring with a charging bolt.
+     108dp adaptive canvas; artwork stays inside the 66dp safe zone. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Gauge track (270 degrees, open at the bottom) -->
+    <path
+        android:pathData="M35.615,72.385 A26,26 0 1,1 72.385,72.385"
+        android:strokeColor="#272B34"
+        android:strokeWidth="6"
+        android:strokeLineCap="round" />
+
+    <!-- State of charge -->
+    <path
+        android:pathData="M35.615,72.385 A26,26 0 1,1 75.298,39.087"
+        android:strokeColor="#7ED321"
+        android:strokeWidth="6"
+        android:strokeLineCap="round" />
+
+    <!-- Charge being added -->
+    <path
+        android:pathData="M79.114,47.271 A26,26 0 0,1 72.385,72.385"
+        android:strokeColor="#F5A623"
+        android:strokeWidth="6"
+        android:strokeLineCap="round" />
+
+    <!-- Bolt -->
+    <path android:pathData="M57.4,36.15 L44.65,56.55 L53.15,56.55 L50.6,71.85 L63.35,50.6 L54.85,50.6 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="54"
+                android:startY="36"
+                android:endX="54"
+                android:endY="72">
+                <item android:offset="0" android:color="#FF98E645" />
+                <item android:offset="0.55" android:color="#FF7ED321" />
+                <item android:offset="1" android:color="#FFF5A623" />
+            </gradient>
+        </aapt:attr>
+    </path>
+</vector>

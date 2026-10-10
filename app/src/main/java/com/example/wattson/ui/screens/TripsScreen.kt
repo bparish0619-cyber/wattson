@@ -45,6 +45,8 @@ fun TripsScreen(
 
     Scaffold(
         containerColor = RivianBlack,
+        // The app-level Scaffold already applies system bar insets.
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { showAddDialog = true },
@@ -318,9 +320,9 @@ fun AddTripDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    val miles = milesText.toFloatOrNull() ?: 10f
-                    val speed = speedText.toFloatOrNull() ?: 30f
-                    if (end.isNotBlank()) {
+                    val miles = milesText.toDecimalOrNull() ?: 0f
+                    val speed = speedText.toDecimalOrNull() ?: 0f
+                    if (end.isNotBlank() && miles > 0f && speed > 0f) {
                         onConfirm(start, end, miles, speed)
                     }
                 },
