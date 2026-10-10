@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.sp
 import com.example.wattson.data.rivian.RivianSession
 import com.example.wattson.model.AppSettings
 import com.example.wattson.ui.theme.*
+import java.util.Locale
 
 @Composable
 fun SettingsScreen(
@@ -32,9 +33,10 @@ fun SettingsScreen(
 ) {
     var vehicleName by remember { mutableStateOf(currentSettings.vehicleName) }
     var vehicleModel by remember { mutableStateOf(currentSettings.vehicleModel) }
-    var homeRateText by remember { mutableStateOf(String.format("%.2f", currentSettings.homeKwhRate)) }
+    // Editable numbers use Locale.US so the text field always shows a parseable value.
+    var homeRateText by remember { mutableStateOf(String.format(Locale.US, "%.2f", currentSettings.homeKwhRate)) }
     var gasMpgText by remember { mutableStateOf(currentSettings.gasMpg.toInt().toString()) }
-    var gasPriceText by remember { mutableStateOf(String.format("%.2f", currentSettings.gasPrice)) }
+    var gasPriceText by remember { mutableStateOf(String.format(Locale.US, "%.2f", currentSettings.gasPrice)) }
     var showSavedSnackbar by remember { mutableStateOf(false) }
 
     LazyColumn(
@@ -42,7 +44,7 @@ fun SettingsScreen(
             .fillMaxSize()
             .background(RivianBlack)
             .testTag("settings_screen"),
-        contentPadding = PaddingValues(16.dp, bottom = 96.dp)
+        contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 96.dp)
     ) {
         item {
             Text(
@@ -271,9 +273,9 @@ fun SettingsScreen(
 
                     Button(
                         onClick = {
-                            val rate = homeRateText.toFloatOrNull() ?: 0.30f
-                            val mpg = gasMpgText.toFloatOrNull() ?: 25.0f
-                            val gas = gasPriceText.toFloatOrNull() ?: 4.50f
+                            val rate = homeRateText.toDecimalOrNull()?.takeIf { it >= 0f } ?: currentSettings.homeKwhRate
+                            val mpg = gasMpgText.toDecimalOrNull()?.takeIf { it > 0f } ?: currentSettings.gasMpg
+                            val gas = gasPriceText.toDecimalOrNull()?.takeIf { it >= 0f } ?: currentSettings.gasPrice
                             onSaveSettings(
                                 currentSettings.copy(
                                     vehicleName = vehicleName,
@@ -377,3 +379,6 @@ fun SettingsScreen(
         }
     }
 }
+
+/** Parses user-entered decimals, accepting a comma as the decimal separator. */
+internal fun String.toDecimalOrNull(): Float? = trim().replace(',', '.').toFloatOrNull()

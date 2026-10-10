@@ -14,6 +14,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -43,7 +44,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        repository = WattsonRepository(applicationContext)
+        repository = WattsonRepository.getInstance(applicationContext)
         enableEdgeToEdge()
 
         setContent {
@@ -82,9 +83,9 @@ fun MainApp(repository: WattsonRepository) {
         return
     }
 
-    var currentDestination by remember { mutableStateOf(NavDestination.DASHBOARD) }
-    var showSettingsScreen by remember { mutableStateOf(false) }
-    var showQuickAddTripDialog by remember { mutableStateOf(false) }
+    var currentDestination by rememberSaveable { mutableStateOf(NavDestination.DASHBOARD) }
+    var showSettingsScreen by rememberSaveable { mutableStateOf(false) }
+    var showQuickAddTripDialog by rememberSaveable { mutableStateOf(false) }
 
     val vehicle by repository.vehicle.collectAsState()
     val trips by repository.trips.collectAsState()
@@ -280,6 +281,8 @@ fun MainApp(repository: WattsonRepository) {
                         drains = drains,
                         savingsTotal = savingsTotal,
                         lifetimeEfficiency = lifetimeEfficiency,
+                        gasMpg = settings.gasMpg,
+                        isDemo = session == null,
                         onNavigateToTrips = { currentDestination = NavDestination.TRIPS },
                         onNavigateToCharging = { currentDestination = NavDestination.CHARGING },
                         onNavigateToSavings = { currentDestination = NavDestination.SAVINGS },

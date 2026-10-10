@@ -32,6 +32,7 @@ fun DrainBarChart(
         Text("No overnight drain data recorded yet.", color = TextSecondary, fontSize = 13.sp)
         return
     }
+    val nights = drains.sortedBy { it.sleepTs } // oldest on the left
 
     val maxKwh = (drains.maxOfOrNull { it.kwhLost } ?: 1f).coerceAtLeast(1.2f)
     val medianKwh = drains.map { it.kwhLost }.sorted().let {
@@ -100,7 +101,7 @@ fun DrainBarChart(
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.Bottom
             ) {
-                drains.forEach { drain ->
+                nights.forEach { drain ->
                     val heightFraction = (drain.kwhLost / maxKwh).coerceIn(0.05f, 1f)
                     val barColor = if (drain.isAbnormal) RivianRed else RivianAmber
                     val isSelected = selectedDrain?.id == drain.id
@@ -143,7 +144,7 @@ fun DrainBarChart(
                     .align(Alignment.BottomCenter),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                drains.forEach { drain ->
+                nights.forEach { drain ->
                     Text(
                         text = drain.label.take(6),
                         color = TextTertiary,

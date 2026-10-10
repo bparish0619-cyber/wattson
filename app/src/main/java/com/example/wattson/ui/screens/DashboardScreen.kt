@@ -34,6 +34,8 @@ fun DashboardScreen(
     drains: List<OvernightDrain>,
     savingsTotal: Float,
     lifetimeEfficiency: Float,
+    gasMpg: Float,
+    isDemo: Boolean,
     onNavigateToTrips: () -> Unit,
     onNavigateToCharging: () -> Unit,
     onNavigateToSavings: () -> Unit,
@@ -131,8 +133,8 @@ fun DashboardScreen(
                                 .padding(horizontal = 10.dp, vertical = 4.dp)
                         ) {
                             Text(
-                                text = "DEMO DATA",
-                                color = RivianAmber,
+                                text = if (isDemo) "DEMO DATA" else "LIVE",
+                                color = if (isDemo) RivianAmber else RivianGreen,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 letterSpacing = 0.5.sp
@@ -292,7 +294,7 @@ fun DashboardScreen(
                         title = "Fuel Savings",
                         value = if (savingsTotal >= 0) "+$${String.format("%.2f", savingsTotal)}" else "-$${String.format("%.2f", -savingsTotal)}",
                         unit = "",
-                        subtitle = "vs 25 MPG SUV at local gas prices",
+                        subtitle = "vs ${gasMpg.toInt()} MPG SUV at local gas prices",
                         valueColor = RivianGreen,
                         icon = WattsonIcons.Savings,
                         testTag = "hero_stat_savings",

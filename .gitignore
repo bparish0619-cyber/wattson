@@ -1,28 +1,20 @@
-# Python
-__pycache__/
-*.py[cod]
-.venv/
-venv/
+# Gradle / Android Studio
+.gradle/
+.kotlin/
+build/
+local.properties
+.idea/
+*.iml
+captures/
+.externalNativeBuild/
+.cxx/
 
-# Wattson runtime (never commit): credentials, database, generated pages
+# Signing material (never commit)
+*.jks
+*.keystore
+
+# Secrets
 .env
-data/
-www/
-demo-data/
-assets/*.webp
-*.db
-*.db-wal
-*.db-shm
-tokens.enc
-.token_key
-*.log
-*.pid
-*heartbeat*
-NEEDS_REAUTH
-poller_state.json
-drive_watch.json
-proximity_test.json
-tile_cache_esri/
 
 # OS
 .DS_Store

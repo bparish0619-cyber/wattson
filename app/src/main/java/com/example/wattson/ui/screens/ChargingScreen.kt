@@ -38,6 +38,8 @@ fun ChargingScreen(
 
     Scaffold(
         containerColor = RivianBlack,
+        // The app-level Scaffold already applies system bar insets.
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { showAddSessionDialog = true },
@@ -245,7 +247,11 @@ fun ChargeRowItem(
                             .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
                         Text(
-                            text = if (session.isDc) "DC FAST" else "HOME AC",
+                            text = when (session.chargeType) {
+                                ChargerType.DC_FAST -> "DC FAST"
+                                ChargerType.PUBLIC_AC -> "PUBLIC AC"
+                                ChargerType.HOME_AC -> "HOME AC"
+                            },
                             color = if (session.isDc) RivianBlue else RivianGreen,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold
@@ -342,7 +348,7 @@ fun ChargeCostDialog(
     onSave: (Float?) -> Unit
 ) {
     var rateText by remember {
-        mutableStateOf(session.userCostPerKwh?.let { String.format("%.2f", it) } ?: "0.42")
+        mutableStateOf(session.userCostPerKwh?.let { String.format(Locale.US, "%.2f", it) } ?: "0.42")
     }
 
     AlertDialog(
@@ -370,8 +376,7 @@ fun ChargeCostDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    val rate = rateText.toFloatOrNull()
-                    onSave(rate)
+                    onSave(rateText.toDecimalOrNull()?.takeIf { it >= 0f })
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = RivianGreen, contentColor = RivianBlack)
             ) {
@@ -484,10 +489,10 @@ fun AddSessionDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    val sStart = socStartText.toFloatOrNull() ?: 50f
-                    val sEnd = socEndText.toFloatOrNull() ?: 85f
-                    val kwh = kwhText.toFloatOrNull() ?: 30f
-                    val cost = if (isDc) costText.toFloatOrNull() else null
+                    val sStart = socStartText.toDecimalOrNull() ?: 50f
+                    val sEnd = socEndText.toDecimalOrNull() ?: 85f
+                    val kwh = kwhText.toDecimalOrNull() ?: 30f
+                    val cost = if (isDc) costText.toDecimalOrNull() else null
                     onConfirm(sStart, sEnd, kwh, if (isDc) ChargerType.DC_FAST else ChargerType.HOME_AC, label, cost)
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = RivianAmber, contentColor = RivianBlack)

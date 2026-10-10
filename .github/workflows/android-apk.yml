@@ -1,0 +1,102 @@
+name: Android APK
+
+# Tests, lints and builds a release APK on every push/PR (kept as a workflow artifact).
+# Pushes to main, manual runs ("Run workflow") and v* tags also publish a GitHub
+# Release with release notes and the .apk attached, for direct download on a phone.
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: android-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write # needed only to publish the release
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # Optional release signing. Without these secrets the APK is signed with
+      # the runner's debug key (installable, but each build may need a reinstall).
+      - name: Decode release keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.WATTSON_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/wattson-release.jks"
+            echo "WATTSON_KEYSTORE_FILE=$RUNNER_TEMP/wattson-release.jks" >> "$GITHUB_ENV"
+            echo "SIGNING_NOTE=Signed with the Wattson release key; installs over earlier releases." >> "$GITHUB_ENV"
+            echo "Signing with the release keystore from secrets."
+          else
+            echo "SIGNING_NOTE=Signed with a temporary debug key; uninstall any earlier Wattson build before installing." >> "$GITHUB_ENV"
+            echo "::warning::WATTSON_KEYSTORE_BASE64 is not set; the release APK will be debug-signed."
+          fi
+
+      - name: Test, lint and build release APK
+        env:
+          WATTSON_KEYSTORE_PASSWORD: ${{ secrets.WATTSON_KEYSTORE_PASSWORD }}
+          WATTSON_KEY_ALIAS: ${{ secrets.WATTSON_KEY_ALIAS }}
+          WATTSON_KEY_PASSWORD: ${{ secrets.WATTSON_KEY_PASSWORD }}
+        run: ./gradlew --no-daemon testDebugUnitTest lintDebug assembleRelease
+
+      - name: Rename APK
+        run: |
+          APK="wattson-1.0.${{ github.run_number }}.apk"
+          cp app/build/outputs/apk/release/app-release.apk "$APK"
+          echo "APK=$APK" >> "$GITHUB_ENV"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wattson-apk-${{ github.run_number }}
+          path: ${{ env.APK }}
+          if-no-files-found: error
+
+      - name: Upload lint report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-report
+          path: app/build/reports/lint-results-debug.html
+          if-no-files-found: ignore
+
+      - name: Publish release
+        if: github.event_name != 'pull_request'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v1.0.{0}', github.run_number) }}
+          name: Wattson for Android ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v1.0.{0}', github.run_number) }}
+          target_commitish: ${{ github.sha }}
+          make_latest: true
+          generate_release_notes: true
+          files: ${{ env.APK }}
+          body: |
+            Native Android build of Wattson, the Rivian energy dashboard (fork of [firerock31/wattson](https://github.com/firerock31/wattson)).
+
+            ## Install
+            1. Download **${{ env.APK }}** below on an Android 8.0+ phone.
+            2. Open it and allow **Install unknown apps** for your browser or file manager when prompted.
+            3. Choose **Explore with Demo Vehicle**, or link your Rivian account.
+
+            ## Build details
+            - Version: `1.0.${{ github.run_number }}` (versionCode ${{ github.run_number }})
+            - Commit: ${{ github.sha }}
+            - Signing: ${{ env.SIGNING_NOTE }}
+            - Checks: unit tests and Android lint passed before this APK was built.
+
+            ## Known limitations
+            - Demo and manually logged history is kept in memory and resets when Android closes the app.
+            - A linked Rivian account syncs live battery, charge limit, range, odometer and charging state only.
